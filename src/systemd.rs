@@ -1,7 +1,7 @@
 use std::fmt::Display;
 use zvariant::OwnedObjectPath;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LoadState {
     Stub,
     Loaded,
@@ -24,6 +24,12 @@ impl From<&str> for LoadState {
             "masked" => LoadState::Masked,
             _ => todo!("{value}"),
         }
+    }
+}
+
+impl From<String> for LoadState {
+    fn from(value: String) -> Self {
+        Self::from(value.as_ref())
     }
 }
 
@@ -65,6 +71,12 @@ impl From<&str> for ActiveState {
     }
 }
 
+impl From<String> for ActiveState {
+    fn from(value: String) -> Self {
+        Self::from(value.as_ref())
+    }
+}
+
 impl Display for ActiveState {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -91,6 +103,56 @@ impl ActiveState {
             Self::Active => true,
             _ => false,
         }
+    }
+}
+
+pub enum UnitFileState {
+    Enabled,
+    Disabled,
+    Static,
+}
+
+impl From<&str> for UnitFileState {
+    fn from(value: &str) -> Self {
+        match value {
+            "enabled" => Self::Enabled,
+            "disabled" => Self::Disabled,
+            "static" => Self::Static,
+            _ => todo!("this: {value}"),
+        }
+    }
+}
+
+impl From<String> for UnitFileState {
+    fn from(value: String) -> Self {
+        Self::from(value.as_ref())
+    }
+}
+
+impl Display for UnitFileState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Disabled => f.write_str("disabled"),
+            Self::Enabled => f.write_str("enabled"),
+            Self::Static => f.write_str("static"),
+        }
+    }
+}
+
+pub struct UnitFilePreset(UnitFileState);
+impl From<&str> for UnitFilePreset {
+    fn from(value: &str) -> Self {
+        Self(value.into())
+    }
+}
+impl From<String> for UnitFilePreset {
+    fn from(value: String) -> Self {
+        Self(value.into())
+    }
+}
+impl Display for UnitFilePreset {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(f)
     }
 }
 
@@ -144,23 +206,16 @@ impl
 
 pub async fn list_system_units() -> zbus::Result<Vec<UnitData>> {
     let conn = zbus::Connection::system().await?;
-
-    let manager = zbus_systemd::systemd1::ManagerProxy::new(&conn).await?;
-    let units = manager
-        .list_units()
-        .await?
-        .iter()
-        .map(|data| UnitData::from(data))
-        .filter(|u| u.name.ends_with(".service"))
-        .collect::<Vec<UnitData>>();
-
-    Ok(units)
+    list_units(conn).await
 }
 
 pub async fn list_user_units() -> zbus::Result<Vec<UnitData>> {
     let conn = zbus::Connection::session().await?;
+    list_units(conn).await
+}
 
-    let manager = zbus_systemd::systemd1::ManagerProxy::new(&conn).await?;
+pub async fn list_units(con: zbus::Connection) -> zbus::Result<Vec<UnitData>> {
+    let manager = zbus_systemd::systemd1::ManagerProxy::new(&con).await?;
     let units = manager
         .list_units()
         .await?

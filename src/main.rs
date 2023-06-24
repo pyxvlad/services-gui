@@ -1,22 +1,17 @@
 #![warn(clippy::all, rust_2018_idioms)]
+#![feature(iter_collect_into)]
+
+use widgets::system_overview::Overview;
+
 mod app;
+pub mod error;
 pub mod message;
 mod systemd;
 mod widgets;
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let rt = tokio::runtime::Runtime::new()?;
-
-    let handle = rt.spawn(async { systemd::list_system_units().await });
-
-    let mut units: Vec<systemd::UnitData> = rt.block_on(handle)??;
-
-    units.sort_by_key(|ud| ud.name.clone());
-    let handle = rt.spawn(async { systemd::list_user_units().await });
-
-    let mut user_units: Vec<systemd::UnitData> = rt.block_on(handle)??;
-
-    user_units.sort_by_key(|ud| ud.name.clone());
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let overview = Overview::connect()?;
 
     env_logger::init(); // Log to stderr (if you run with `RUST_LOG=debug`).
 
@@ -24,10 +19,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     eframe::run_native(
         "eframe template",
         native_options,
-        Box::new(|cc| {
-            println!("===> units = {}", units.len());
-            Box::new(app::TemplateApp::new(cc, units, user_units))
-        }),
+        Box::new(|cc| Box::new(app::TemplateApp::new(cc, overview))),
     )?;
 
     Ok(())

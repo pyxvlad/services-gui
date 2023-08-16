@@ -5,6 +5,7 @@ use widgets::system_overview::Overview;
 
 mod app;
 pub mod error;
+pub mod journal;
 pub mod message;
 mod systemd;
 mod widgets;

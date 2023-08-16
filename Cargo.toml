@@ -1,7 +1,7 @@
 [package]
-name = "eframe_template"
+name = "services-gui"
 version = "0.1.0"
-authors = ["Emil Ernerfeldt <emil.ernerfeldt@gmail.com>"]
+authors = ["Vlad <vlad.anghel@protonmail.com>"]
 edition = "2021"
 rust-version = "1.65"
 
@@ -18,15 +18,20 @@ log = "0.4"
 
 # You only need serde if you want app persistence:
 serde = { version = "1", features = ["derive"] }
+chrono = "0.4.26"
+zbus_systemd = { version = "0.0.8", features = ["systemd1"] }
+zbus = "3.13.1"
+service-manager = "0.3.0"
+tokio = { version = "1.28.2", features = ["full", "rt"] }
+zvariant = "3.14.0"
+egui_extras = "0.22.0"
+poll-promise = { version = "0.2.0", features = ["tokio"] }
+catppuccin-egui = "3.0.0"
+systemd = "0.10.0"
 
 # native:
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 env_logger = "0.10"
-
-# web:
-[target.'cfg(target_arch = "wasm32")'.dependencies]
-wasm-bindgen-futures = "0.4"
-
 
 [profile.release]
 opt-level = 2 # fast and small wasm
@@ -34,7 +39,6 @@ opt-level = 2 # fast and small wasm
 # Optimize all dependencies even in debug builds:
 [profile.dev.package."*"]
 opt-level = 2
-
 
 [patch.crates-io]
 

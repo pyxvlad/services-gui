@@ -91,21 +91,12 @@ impl Display for ActiveState {
 }
 
 impl ActiveState {
-    fn can_start(self) -> bool {
-        match self {
-            Self::Inactive | Self::Failed => true,
-            _ => false,
-        }
-    }
-
-    fn can_stop(self) -> bool {
-        match self {
-            Self::Active => true,
-            _ => false,
-        }
+    pub fn can_start(self) -> bool {
+        matches!(self, Self::Inactive | Self::Failed)
     }
 }
 
+#[derive(Clone, Copy)]
 pub enum UnitFileState {
     Enabled,
     Disabled,
@@ -126,6 +117,15 @@ impl From<&str> for UnitFileState {
 impl From<String> for UnitFileState {
     fn from(value: String) -> Self {
         Self::from(value.as_ref())
+    }
+}
+
+impl UnitFileState {
+    pub fn can_enable(self) -> bool {
+        matches!(self, Self::Disabled)
+    }
+    pub fn can_disable(self) -> bool {
+        matches!(self, Self::Enabled)
     }
 }
 
@@ -204,37 +204,16 @@ impl
     }
 }
 
-pub async fn list_system_units() -> zbus::Result<Vec<UnitData>> {
-    let conn = zbus::Connection::system().await?;
-    list_units(conn).await
-}
-
-pub async fn list_user_units() -> zbus::Result<Vec<UnitData>> {
-    let conn = zbus::Connection::session().await?;
-    list_units(conn).await
-}
-
 pub async fn list_units(con: zbus::Connection) -> zbus::Result<Vec<UnitData>> {
     let manager = zbus_systemd::systemd1::ManagerProxy::new(&con).await?;
-    let units = manager
+    let mut units = manager
         .list_units()
         .await?
         .iter()
-        .map(|data| UnitData::from(data))
+        .map(UnitData::from)
         .filter(|u| u.name.ends_with(".service"))
         .collect::<Vec<UnitData>>();
+    units.sort_by_key(|u| u.name.clone());
 
     Ok(units)
-}
-
-pub async fn get_unit(unit_name: String) -> zbus::Result<()> {
-    let conn = zbus::Connection::session().await?;
-    let manager = zbus_systemd::systemd1::ManagerProxy::new(&conn).await?;
-
-    let obj = manager.get_unit(unit_name).await?;
-    let proxy = zbus_systemd::systemd1::UnitProxy::new(&conn, obj).await?;
-
-    proxy.start("".to_string());
-
-    Ok(())
 }

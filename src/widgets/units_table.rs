@@ -15,7 +15,7 @@ pub fn units_table(
         .auto_shrink([false, false])
         .show(ui, |ui| {
             let text_height = egui::TextStyle::Body.resolve(ui.style()).size;
-            let striped = ui.visuals().striped;
+            let striped = ui.visuals().striped | true;
             egui_extras::TableBuilder::new(ui)
                 .resizable(true)
                 .striped(striped)

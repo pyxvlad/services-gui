@@ -3,13 +3,13 @@ use tokio::sync::mpsc::error::SendError;
 
 use tokio::task::JoinError;
 
-use crate::widgets::journal::Entry;
+use crate::journal::Entry;
 
 #[derive(Debug)]
 pub enum Error {
     Systemd(systemd::Error),
     Zbus(zbus::Error),
-    MPSC(SendError<crate::widgets::journal::Entry>),
+    MPSC(Box<SendError<Entry>>),
     Join(JoinError),
     Custom(&'static str),
 }
@@ -40,7 +40,7 @@ impl From<zbus::Error> for Error {
 
 impl From<SendError<Entry>> for Error {
     fn from(value: SendError<Entry>) -> Self {
-        Self::MPSC(value)
+        Self::MPSC(Box::new(value))
     }
 }
 

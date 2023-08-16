@@ -1,7 +1,8 @@
 use super::unitdata::{ActiveStateLabel, LoadStateLabel, UnitFilePresetLabel, UnitFileStateLabel};
 use crate::systemd::{self, ActiveState, LoadState, UnitFilePreset, UnitFileState};
-use egui::{Context, Label, Ui, Widget, Window};
+use egui::{Color32, Context, Label, Ui, Widget, Window};
 use poll_promise::Promise;
+use zbus_systemd::systemd1::{ManagerProxy, UnitProxy};
 use zvariant::OwnedObjectPath;
 
 #[derive(Clone)]
@@ -61,6 +62,13 @@ impl PropertiesWindow {
                                     ui.heading(err.to_string());
                                 }
                             }
+
+                            let result =
+                                self.build_buttons(ui, unit.object_path.clone(), unit.name.clone());
+                            if let Err(err) = result {
+                                ui.colored_label(Color32::DEBUG_COLOR, format!("ERROR: {err}"));
+                                println!("ERROR at {}:{}: {err}", file!(), line!());
+                            }
                         });
                 }
                 self.open = open;
@@ -79,6 +87,101 @@ impl PropertiesWindow {
     pub fn close(&mut self) {
         self.unit = None;
         self.open = false;
+    }
+
+    fn build_buttons(&self, ui: &mut Ui, path: OwnedObjectPath, name: String) -> zbus::Result<()> {
+        if ui.button("Restart Unit").clicked() {
+            self.restart(path.clone())?;
+        }
+        if self.can_start(path.clone())? {
+            if ui.button("Start Unit").clicked() {
+                self.start(path.clone())?;
+            }
+        } else if ui.button("Stop Unit").clicked() {
+            self.stop(path.clone())?;
+        }
+
+        let ufs = self.unit_file_state(path)?;
+        if ufs.can_enable() && ui.button("Enable").clicked() {
+            self.enable_units(vec![name])?;
+        } else if ufs.can_disable() && ui.button("Disable").clicked() {
+            self.disable_units(vec![name])?;
+        }
+
+        Ok(())
+    }
+
+    fn can_start(&self, path: OwnedObjectPath) -> zbus::Result<bool> {
+        let con = self.con.clone();
+        Promise::spawn_async(async move {
+            Ok(
+                ActiveState::from(UnitProxy::new(&con, path).await?.active_state().await?)
+                    .can_start(),
+            )
+        })
+        .block_and_take()
+    }
+
+    fn start(&self, path: OwnedObjectPath) -> zbus::Result<OwnedObjectPath> {
+        let con = self.con.clone();
+        Promise::spawn_async(async move {
+            UnitProxy::new(&con, path)
+                .await?
+                .start("replace".to_owned())
+                .await
+        })
+        .block_and_take()
+    }
+    fn restart(&self, path: OwnedObjectPath) -> zbus::Result<OwnedObjectPath> {
+        let con = self.con.clone();
+        Promise::spawn_async(async move {
+            UnitProxy::new(&con, path)
+                .await?
+                .restart("replace".to_owned())
+                .await
+        })
+        .block_and_take()
+    }
+    fn stop(&self, path: OwnedObjectPath) -> zbus::Result<OwnedObjectPath> {
+        let con = self.con.clone();
+        Promise::spawn_async(async move {
+            UnitProxy::new(&con, path)
+                .await?
+                .stop("replace".to_owned())
+                .await
+        })
+        .block_and_take()
+    }
+    fn unit_file_state(&self, path: OwnedObjectPath) -> zbus::Result<UnitFileState> {
+        let con = self.con.clone();
+        Promise::spawn_async(async move {
+            Ok(UnitFileState::from(
+                UnitProxy::new(&con, path).await?.unit_file_state().await?,
+            ))
+        })
+        .block_and_take()
+    }
+    fn enable_units(&self, units: Vec<String>) -> zbus::Result<()> {
+        let con = self.con.clone();
+        Promise::spawn_async(async move {
+            ManagerProxy::new(&con)
+                .await?
+                .enable_unit_files(units, true, false)
+                .await?;
+            Ok(())
+        })
+        .block_and_take()
+    }
+    fn disable_units(&self, units: Vec<String>) -> zbus::Result<()> {
+        let con = self.con.clone();
+        Promise::spawn_async(async move {
+            ManagerProxy::new(&con)
+                .await?
+                .disable_unit_files(units, false)
+                .await?;
+            Ok(())
+        })
+        .block_and_take()
     }
 }
 

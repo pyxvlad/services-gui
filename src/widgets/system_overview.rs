@@ -24,12 +24,9 @@ impl Overview {
         Ok(Overview {
             system_bus: system_bus.clone(),
             session_bus: session_bus.clone(),
-            system_services: Services::new(
-                system_bus.clone(),
-                OpenOptions::default().system(true).clone(),
-            ),
+            system_services: Services::new(system_bus, OpenOptions::default().system(true).clone()),
             user_services: Services::new(
-                session_bus.clone(),
+                session_bus,
                 OpenOptions::default().current_user(true).clone(),
             ),
             tab: "system".to_string(),
